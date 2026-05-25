@@ -1,0 +1,1909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>TwinCore BIM Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+
+<!-- Three.js for real 3D rendering -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#03060E;--s1:#070B18;--s2:#0A1020;--s3:#0E1628;
+  --b1:#111E33;--b2:#182840;--b3:#1F3352;
+  --ac:#00E5FF;--ac2:#0098B5;--acg:rgba(0,229,255,.1);
+  --wm:#FF6B2B;--gn:#00F5A0;--yw:#FFD000;--rd:#FF3355;--pu:#9F6FFF;
+  --tx:#C8E8FF;--mt:#3A6080;--dm:#152030;
+  --fn:'IBM Plex Sans',sans-serif;--fm:'IBM Plex Mono',monospace;
+  --r:6px;--rl:10px;--rxl:16px;
+}
+html,body{height:100%;overflow:hidden;font-family:var(--fn);background:var(--bg);color:var(--tx);font-size:13px;line-height:1.5}
+button{cursor:pointer;font-family:var(--fn)}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* ── LAYOUT ──────────────────────────────────────────────────────── */
+#shell{display:grid;grid-template-rows:48px 1fr;height:100vh}
+#hdr{background:var(--s1);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 16px;gap:12px;z-index:50}
+#content{display:grid;grid-template-columns:260px 1fr 280px;overflow:hidden}
+#left-panel{background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden}
+#center{position:relative;overflow:hidden;background:var(--bg)}
+#right-panel{background:var(--s1);border-left:1px solid var(--b1);overflow-y:auto;display:flex;flex-direction:column}
+
+/* ── HEADER ──────────────────────────────────────────────────────── */
+.logo{display:flex;align-items:center;gap:8px}
+.logo-mark{width:28px;height:28px;background:linear-gradient(135deg,var(--ac),var(--wm));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.logo-text{font-family:var(--fm);font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--tx)}
+.logo-tag{font-size:8px;letter-spacing:2px;color:var(--mt);text-transform:uppercase}
+.hdr-tabs{display:flex;gap:2px;margin-left:16px}
+.htab{background:none;border:none;color:var(--mt);padding:6px 14px;font-size:11px;font-family:var(--fm);border-radius:var(--r);transition:all .15s;font-weight:500}
+.htab:hover{color:var(--tx);background:var(--s2)}
+.htab.active{background:var(--acg);color:var(--ac);border:1px solid rgba(0,229,255,.2)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.status-pill{display:flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--b1);border-radius:20px;padding:3px 10px;font-size:10px;font-family:var(--fm);color:var(--mt)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--gn);flex-shrink:0}
+.status-dot.loading{background:var(--yw);animation:blink .7s infinite}
+.status-dot.error{background:var(--rd)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── LEFT PANEL ──────────────────────────────────────────────────── */
+.panel-section{padding:10px 12px 6px;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dm);font-weight:600;border-bottom:1px solid var(--b1)}
+.file-drop-zone{margin:10px;border:1.5px dashed var(--b2);border-radius:var(--rl);padding:20px 12px;text-align:center;cursor:pointer;transition:all .2s;background:transparent}
+.file-drop-zone:hover,.file-drop-zone.drag{border-color:var(--ac);background:var(--acg)}
+.fdz-icon{font-size:28px;margin-bottom:8px;opacity:.7}
+.fdz-title{font-size:12px;font-weight:600;color:var(--tx);margin-bottom:3px}
+.fdz-sub{font-size:10px;color:var(--mt);line-height:1.5}
+.fdz-types{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.fdz-type{background:var(--s2);border:1px solid var(--b1);border-radius:3px;padding:1px 6px;font-size:9px;font-family:var(--fm);color:var(--mt)}
+.fdz-type.ok{border-color:rgba(0,229,255,.3);color:var(--ac);background:var(--acg)}
+.upload-btn{display:block;width:calc(100% - 24px);margin:0 12px 10px;background:linear-gradient(135deg,var(--ac),var(--ac2));border:none;border-radius:var(--r);padding:9px;font-size:11px;font-weight:600;color:var(--bg);text-align:center;cursor:pointer;transition:opacity .2s}
+.upload-btn:hover{opacity:.85}
+
+/* Tree */
+.tree-scroll{flex:1;overflow-y:auto;padding:8px 0}
+.tree-node{display:flex;align-items:center;gap:6px;padding:5px 12px;cursor:pointer;font-size:11px;transition:background .1s;user-select:none}
+.tree-node:hover{background:var(--s2)}
+.tree-node.active{background:var(--acg);color:var(--ac)}
+.tree-node.active .tn-icon{color:var(--ac)}
+.tn-indent{flex-shrink:0}
+.tn-toggle{width:14px;text-align:center;color:var(--mt);font-size:10px;flex-shrink:0;transition:transform .15s}
+.tn-toggle.open{transform:rotate(90deg)}
+.tn-icon{font-size:12px;flex-shrink:0;color:var(--mt)}
+.tn-label{flex:1;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn-count{font-size:9px;font-family:var(--fm);color:var(--mt);flex-shrink:0}
+
+/* Floor list */
+.floor-list{padding:4px 0}
+.floor-item{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;transition:background .1s}
+.floor-item:hover{background:var(--s2)}
+.floor-item.active{background:var(--acg)}
+.fi-indicator{width:3px;height:20px;border-radius:2px;background:var(--b2);flex-shrink:0;transition:background .2s}
+.floor-item.active .fi-indicator{background:var(--ac)}
+.fi-label{flex:1;font-size:11px;font-weight:500}
+.fi-elev{font-size:9px;font-family:var(--fm);color:var(--mt)}
+
+/* ── CENTER (3D + PLAN) ──────────────────────────────────────────── */
+#viewer-3d{position:absolute;inset:0;display:block}
+#viewer-plan{position:absolute;inset:0;display:none;background:var(--s1)}
+#plan-canvas{width:100%;height:100%;display:block}
+
+.view-toolbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:4px;background:rgba(7,11,24,.85);border:1px solid var(--b2);border-radius:20px;padding:4px;backdrop-filter:blur(8px);z-index:10}
+.vtb-btn{background:none;border:none;color:var(--mt);padding:4px 10px;font-size:10px;font-family:var(--fm);border-radius:16px;transition:all .15s;font-weight:500}
+.vtb-btn:hover{color:var(--tx);background:var(--s2)}
+.vtb-btn.active{background:var(--acg);color:var(--ac)}
+
+.view-controls{position:absolute;bottom:10px;left:10px;display:flex;flex-direction:column;gap:4px;z-index:10}
+.vc-btn{width:32px;height:32px;background:rgba(7,11,24,.85);border:1px solid var(--b2);border-radius:var(--r);color:var(--mt);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;backdrop-filter:blur(8px)}
+.vc-btn:hover{border-color:var(--ac);color:var(--ac)}
+
+.hud{position:absolute;bottom:10px;right:10px;font-size:9px;font-family:var(--fm);color:var(--mt);text-align:right;z-index:10;line-height:1.8}
+
+.measure-overlay{position:absolute;top:10px;right:10px;background:rgba(7,11,24,.9);border:1px solid var(--b2);border-radius:var(--r);padding:8px 12px;font-size:10px;font-family:var(--fm);color:var(--mt);z-index:10;display:none}
+.measure-overlay.show{display:block}
+
+/* Drop overlay */
+#drop-overlay{position:absolute;inset:0;background:rgba(0,229,255,.06);border:3px dashed var(--ac);display:none;align-items:center;justify-content:center;z-index:100;pointer-events:none}
+#drop-overlay.show{display:flex}
+.drop-msg{font-size:20px;font-weight:600;color:var(--ac);text-align:center}
+
+/* Loading overlay */
+#load-overlay{position:absolute;inset:0;background:rgba(3,6,14,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px)}
+#load-overlay.hidden{display:none}
+.load-spinner{width:40px;height:40px;border:2px solid var(--b2);border-top-color:var(--ac);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px}
+.load-title{font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px}
+.load-sub{font-size:11px;color:var(--mt)}
+.load-bar{width:200px;height:2px;background:var(--b2);border-radius:1px;margin-top:12px;overflow:hidden}
+.load-fill{height:100%;background:var(--ac);border-radius:1px;width:0;transition:width .3s}
+
+/* Empty state */
+#empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.es-icon{font-size:64px;margin-bottom:16px;opacity:.25}
+.es-title{font-size:16px;font-weight:600;color:var(--tx);opacity:.4;margin-bottom:6px}
+.es-sub{font-size:12px;color:var(--mt);text-align:center;max-width:300px;line-height:1.6;opacity:.6}
+.es-arrow{font-size:24px;margin-top:16px;color:var(--ac);opacity:.4;animation:bounce 2s infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+/* ── RIGHT PANEL ─────────────────────────────────────────────────── */
+.rp-header{padding:12px 14px;border-bottom:1px solid var(--b1);font-size:11px;font-weight:600;color:var(--tx);display:flex;align-items:center;gap:8px}
+.rp-empty{padding:20px 14px;font-size:11px;color:var(--mt);text-align:center;line-height:1.6}
+.prop-group{padding:10px 14px;border-bottom:1px solid var(--b1)}
+.prop-group-title{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dm);margin-bottom:8px;font-weight:600}
+.prop-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;gap:8px}
+.prop-key{font-size:10px;color:var(--mt);flex-shrink:0}
+.prop-val{font-size:10px;font-family:var(--fm);color:var(--tx);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.prop-val.highlight{color:var(--ac)}
+.prop-val.warn{color:var(--yw)}
+.prop-val.crit{color:var(--rd)}
+.prop-val.ok{color:var(--gn)}
+
+/* Section tabs in right panel */
+.rp-tabs{display:flex;border-bottom:1px solid var(--b1)}
+.rpt{flex:1;background:none;border:none;color:var(--mt);padding:8px 0;font-size:10px;font-family:var(--fm);font-weight:500;border-bottom:2px solid transparent;transition:all .15s}
+.rpt:hover{color:var(--tx)}
+.rpt.active{color:var(--ac);border-bottom-color:var(--ac)}
+
+/* Asset list in right panel */
+.asset-list-item{padding:8px 14px;border-bottom:1px solid var(--b1);cursor:pointer;display:flex;gap:8px;align-items:center;transition:background .1s}
+.asset-list-item:hover{background:var(--s2)}
+.asset-list-item.active{background:var(--acg)}
+.ali-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ali-name{flex:1;font-size:11px;font-weight:500}
+.ali-floor{font-size:9px;font-family:var(--fm);color:var(--mt)}
+.ali-health{font-size:10px;font-family:var(--fm);font-weight:700}
+
+/* Health bar inline */
+.hbar{height:2px;background:var(--b1);border-radius:1px;margin-top:3px}
+.hbar-fill{height:100%;border-radius:1px;transition:width .5s}
+
+/* File info box */
+.file-info-box{margin:10px 14px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px}
+.fib-name{font-size:11px;font-weight:600;color:var(--tx);margin-bottom:6px;display:flex;align-items:center;gap:6px;word-break:break-all}
+.fib-row{display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px}
+.fib-key{color:var(--mt)}
+.fib-val{font-family:var(--fm);color:var(--ac)}
+
+/* Element tree count badges */
+.badge-count{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:0 6px;font-size:9px;font-family:var(--fm);color:var(--mt)}
+
+/* Section chooser for plan floors */
+.section-row{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--b1)}
+.section-label{font-size:10px;color:var(--mt);flex:1}
+.section-val{font-size:10px;font-family:var(--fm);color:var(--ac)}
+.section-slider{flex:1;accent-color:var(--ac)}
+
+/* Clipping controls */
+.clip-panel{padding:10px 14px;border-bottom:1px solid var(--b1)}
+.clip-title{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dm);margin-bottom:8px;font-weight:600}
+.clip-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.clip-label{font-size:10px;color:var(--mt);width:20px}
+input[type=range]{accent-color:var(--ac)}
+
+/* Notification toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s2);border:1px solid var(--b2);border-radius:var(--rl);padding:10px 18px;font-size:11px;color:var(--tx);z-index:9999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast-dot{width:6px;height:6px;border-radius:50%;background:var(--gn);flex-shrink:0}
+
+/* Measurement mode */
+.measure-btn.active{background:rgba(255,208,0,.15);border-color:var(--yw);color:var(--yw)}
+</style>
+</head>
+<body>
+
+<div id="shell">
+<!-- HEADER -->
+<div id="hdr">
+  <div class="logo">
+    <div class="logo-mark">⬡</div>
+    <div><div class="logo-text">TWINCORE</div><div class="logo-tag">BIM Viewer</div></div>
+  </div>
+  <div class="hdr-tabs">
+    <button class="htab active" onclick="switchView('3d',this)">3D Model</button>
+    <button class="htab" onclick="switchView('plan',this)">Floor Plan</button>
+    <button class="htab" onclick="switchView('section',this)">Section Cut</button>
+  </div>
+  <div class="hdr-right">
+    <div class="status-pill"><div class="status-dot" id="sys-dot"></div><span id="sys-label">Ready</span></div>
+    <div class="status-pill" id="vertex-count" style="display:none"><span id="vc-text">0 vertices</span></div>
+    <div class="status-pill" id="fps-pill" style="display:none"><span id="fps-text">-- fps</span></div>
+  </div>
+</div>
+
+<div id="content">
+<!-- LEFT PANEL -->
+<div id="left-panel">
+  <div class="panel-section">Load BIM File</div>
+  <div class="file-drop-zone" id="drop-zone" onclick="document.getElementById('file-inp').click()">
+    <div class="fdz-icon">📐</div>
+    <div class="fdz-title">Drop BIM file here</div>
+    <div class="fdz-sub">or click to browse your computer</div>
+    <div class="fdz-types">
+      <span class="fdz-type ok">IFC</span>
+      <span class="fdz-type ok">OBJ</span>
+      <span class="fdz-type ok">GLB</span>
+      <span class="fdz-type ok">GLTF</span>
+      <span class="fdz-type">RVT*</span>
+      <span class="fdz-type">NWD*</span>
+    </div>
+    <div style="font-size:9px;color:var(--dm);margin-top:6px">* RVT/NWD require APS conversion</div>
+  </div>
+  <input type="file" id="file-inp" accept=".ifc,.obj,.glb,.gltf,.rvt,.nwd,.nwc,.json" style="display:none" onchange="handleFile(this)"/>
+  <button class="upload-btn" onclick="document.getElementById('file-inp').click()">⬆ Upload File</button>
+
+  <div class="panel-section" style="display:flex;align-items:center;justify-content:space-between">
+    <span>Model Tree</span>
+    <span class="badge-count" id="tree-count">—</span>
+  </div>
+  <div class="tree-scroll" id="tree-scroll">
+    <div style="padding:20px 12px;font-size:11px;color:var(--mt);text-align:center;line-height:1.7">
+      Load a file to see the element tree and floor hierarchy
+    </div>
+  </div>
+
+  <div class="panel-section">Floors / Levels</div>
+  <div class="floor-list" id="floor-list">
+    <div style="padding:12px;font-size:10px;color:var(--mt);text-align:center">No levels loaded</div>
+  </div>
+</div>
+
+<!-- CENTER -->
+<div id="center">
+  <!-- Empty state -->
+  <div id="empty-state">
+    <div class="es-icon">🏗</div>
+    <div class="es-title">No BIM Model Loaded</div>
+    <div class="es-sub">Upload an IFC, OBJ, GLB/GLTF file to view your building model in 3D and explore floor plans</div>
+    <div class="es-arrow">←</div>
+  </div>
+
+  <!-- Drop overlay -->
+  <div id="drop-overlay"><div class="drop-msg">📁<br/>Drop to load model</div></div>
+
+  <!-- Load overlay -->
+  <div id="load-overlay" class="hidden">
+    <div class="load-spinner"></div>
+    <div class="load-title" id="load-title">Processing model…</div>
+    <div class="load-sub" id="load-sub">Parsing geometry</div>
+    <div class="load-bar"><div class="load-fill" id="load-fill"></div></div>
+  </div>
+
+  <!-- Three.js canvas -->
+  <canvas id="viewer-3d"></canvas>
+
+  <!-- 2D plan canvas -->
+  <canvas id="plan-canvas" style="display:none"></canvas>
+
+  <!-- Toolbar -->
+  <div class="view-toolbar" id="view-toolbar" style="display:none">
+    <button class="vtb-btn active" onclick="setShading('solid',this)">Solid</button>
+    <button class="vtb-btn" onclick="setShading('wire',this)">Wire</button>
+    <button class="vtb-btn" onclick="setShading('xray',this)">X-Ray</button>
+    <button class="vtb-btn" id="isolate-btn" onclick="toggleIsolate()">Isolate</button>
+    <button class="vtb-btn" id="measure-btn" onclick="toggleMeasure()">Measure</button>
+    <button class="vtb-btn" onclick="fitAll()">Fit All</button>
+    <button class="vtb-btn" onclick="resetCamera()">Reset</button>
+  </div>
+
+  <!-- View controls -->
+  <div class="view-controls" id="view-controls" style="display:none">
+    <button class="vc-btn" title="Top view" onclick="snapCamera('top')">⊤</button>
+    <button class="vc-btn" title="Front view" onclick="snapCamera('front')">↑</button>
+    <button class="vc-btn" title="Right view" onclick="snapCamera('right')">→</button>
+    <button class="vc-btn" title="Isometric" onclick="snapCamera('iso')">⊡</button>
+    <button class="vc-btn" title="Zoom in" onclick="zoomDelta(1.2)">+</button>
+    <button class="vc-btn" title="Zoom out" onclick="zoomDelta(0.8)">−</button>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud" id="hud"></div>
+
+  <!-- Measure overlay -->
+  <div class="measure-overlay" id="measure-overlay">
+    <div style="color:var(--yw);font-weight:700;margin-bottom:4px">📏 Measure Mode</div>
+    <div id="measure-text">Click two points to measure</div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div id="right-panel">
+  <div class="rp-tabs">
+    <button class="rpt active" onclick="switchRTab('properties',this)">Properties</button>
+    <button class="rpt" onclick="switchRTab('assets',this)">Assets</button>
+    <button class="rpt" onclick="switchRTab('clip',this)">Clip</button>
+  </div>
+
+  <!-- Properties tab -->
+  <div id="rtab-properties">
+    <div id="file-info-area"></div>
+    <div id="props-area">
+      <div class="rp-empty">Select an element in the viewer to inspect its properties</div>
+    </div>
+  </div>
+
+  <!-- Assets tab -->
+  <div id="rtab-assets" style="display:none">
+    <div style="padding:8px 14px;font-size:10px;color:var(--mt)">Linked facility assets — click to highlight in model</div>
+    <div id="asset-list-rp"></div>
+  </div>
+
+  <!-- Clip tab -->
+  <div id="rtab-clip" style="display:none">
+    <div class="clip-panel">
+      <div class="clip-title">Clipping Planes</div>
+      <div class="clip-row"><span class="clip-label" style="color:var(--ac)">X</span><input type="range" id="clip-x" min="-1" max="1" step="0.01" value="1" oninput="updateClip()"/><span style="font-size:9px;font-family:var(--fm);color:var(--mt);width:32px;text-align:right" id="clip-x-v">off</span></div>
+      <div class="clip-row"><span class="clip-label" style="color:var(--gn)">Y</span><input type="range" id="clip-y" min="-1" max="1" step="0.01" value="1" oninput="updateClip()"/><span style="font-size:9px;font-family:var(--fm);color:var(--mt);width:32px;text-align:right" id="clip-y-v">off</span></div>
+      <div class="clip-row"><span class="clip-label" style="color:var(--yw)">Z</span><input type="range" id="clip-z" min="-1" max="1" step="0.01" value="1" oninput="updateClip()"/><span style="font-size:9px;font-family:var(--fm);color:var(--mt);width:32px;text-align:right" id="clip-z-v">off</span></div>
+      <button onclick="resetClip()" style="width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:6px;color:var(--mt);font-size:10px;margin-top:4px">Reset Clipping</button>
+    </div>
+    <div class="clip-panel">
+      <div class="clip-title">Floor Isolation</div>
+      <div id="floor-iso-list"></div>
+    </div>
+    <div class="clip-panel">
+      <div class="clip-title">Element Filters</div>
+      <div id="type-filter-list"></div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+
+<!-- Hidden file input for GLTF loader script -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// GLOBALS
+// ════════════════════════════════════════════════════════════
+let scene, camera, renderer, raycaster, mouse;
+let controls = { isDown:false, lastX:0, lastY:0, mode:'orbit' };
+let modelGroup = null;
+let allMeshes = [];
+let selectedMesh = null;
+let originalMaterials = new Map();
+let loadedFile = null;
+let currentView = '3d';
+let shadingMode = 'solid';
+let isolateActive = false;
+let measureMode = false;
+let measurePoints = [];
+let measureObjects = [];
+let clippingPlanes = [];
+let currentFloor = null;
+let floorsData = [];
+let elementTypes = {};
+let visibleTypes = {};
+let animId = null;
+let frameCount = 0, fpsTime = 0;
+let modelBBox = null;
+let activeRTab = 'properties';
+
+// Mock asset data linked to BIM elements
+const MOCK_ASSETS = [
+  {id:'A001',name:'AHU-01',type:'HVAC',floor:'L1',health:94,rul:2847,status:'operational',pos:new THREE.Vector3(2,3,2)},
+  {id:'A002',name:'ELEV-01',type:'Elevator',floor:'GF',health:67,rul:892,status:'warning',pos:new THREE.Vector3(0,1,0)},
+  {id:'A003',name:'CHILLER-01',type:'Cooling',floor:'B1',health:88,rul:5210,status:'operational',pos:new THREE.Vector3(-3,-2,1)},
+  {id:'A004',name:'PUMP-02',type:'Plumbing',floor:'B1',health:31,rul:124,status:'critical',pos:new THREE.Vector3(3,-2,-1)},
+  {id:'A005',name:'FCU-L2-04',type:'HVAC',floor:'L2',health:99,rul:8930,status:'operational',pos:new THREE.Vector3(-2,5,1)},
+  {id:'A006',name:'GEN-01',type:'Power',floor:'B2',health:100,rul:null,status:'standby',pos:new THREE.Vector3(4,-4,0)},
+  {id:'A007',name:'FIRE-SYS',type:'Safety',floor:'L1',health:100,rul:null,status:'operational',pos:new THREE.Vector3(1,3,3)},
+  {id:'A008',name:'BMS-CTRL',type:'Controls',floor:'L3',health:82,rul:3400,status:'operational',pos:new THREE.Vector3(-1,7,0)},
+];
+const STATUS_COLORS = {operational:0x00F5A0,warning:0xFFD000,critical:0xFF3355,standby:0x3A6080};
+
+// ════════════════════════════════════════════════════════════
+// THREE.JS INIT
+// ════════════════════════════════════════════════════════════
+function initThree() {
+  const canvas = document.getElementById('viewer-3d');
+  const center = document.getElementById('center');
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(center.clientWidth, center.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.localClippingEnabled = true;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x03060E);
+  scene.fog = new THREE.FogExp2(0x03060E, 0.015);
+
+  camera = new THREE.PerspectiveCamera(45, center.clientWidth / center.clientHeight, 0.01, 2000);
+  camera.position.set(12, 8, 12);
+  camera.lookAt(0, 0, 0);
+
+  // Lights
+  const amb = new THREE.AmbientLight(0x4488AA, 0.4);
+  scene.add(amb);
+  const dir = new THREE.DirectionalLight(0xDDEEFF, 1.2);
+  dir.position.set(10, 20, 10);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(2048, 2048);
+  scene.add(dir);
+  const fill = new THREE.DirectionalLight(0x6699BB, 0.3);
+  fill.position.set(-10, 5, -10);
+  scene.add(fill);
+  const hem = new THREE.HemisphereLight(0x223355, 0x112233, 0.5);
+  scene.add(hem);
+
+  // Grid
+  const grid = new THREE.GridHelper(40, 40, 0x0E1628, 0x0E1628);
+  grid.material.opacity = 0.6;
+  grid.material.transparent = true;
+  scene.add(grid);
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  // Camera controls
+  setupCameraControls(canvas);
+
+  // Asset markers (always shown)
+  addAssetMarkers();
+
+  renderer.setAnimationLoop(renderLoop);
+}
+
+function renderLoop(time) {
+  frameCount++;
+  if(time - fpsTime > 1000) {
+    const fps = Math.round(frameCount * 1000 / (time - fpsTime));
+    document.getElementById('fps-text').textContent = fps + ' fps';
+    frameCount = 0; fpsTime = time;
+  }
+  updateHUD();
+  renderer.render(scene, camera);
+}
+
+// ════════════════════════════════════════════════════════════
+// CAMERA CONTROLS (orbit + pan + zoom)
+// ════════════════════════════════════════════════════════════
+let camTheta = Math.PI/4, camPhi = Math.PI/3.5, camRadius = 20;
+let camTarget = new THREE.Vector3(0,0,0);
+
+function setupCameraControls(canvas) {
+  canvas.addEventListener('mousedown', e => {
+    controls.isDown = true;
+    controls.lastX = e.clientX;
+    controls.lastY = e.clientY;
+    controls.mode = e.button === 2 ? 'pan' : 'orbit';
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    if(!controls.isDown) return;
+    const dx = e.clientX - controls.lastX;
+    const dy = e.clientY - controls.lastY;
+    controls.lastX = e.clientX;
+    controls.lastY = e.clientY;
+
+    if(controls.mode === 'orbit') {
+      camTheta -= dx * 0.008;
+      camPhi = Math.max(0.05, Math.min(Math.PI*0.48, camPhi - dy*0.006));
+    } else {
+      const panSpeed = camRadius * 0.001;
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3(0,1,0);
+      right.crossVectors(camera.position.clone().sub(camTarget), up).normalize();
+      camTarget.addScaledVector(right, -dx * panSpeed);
+      camTarget.y += dy * panSpeed;
+    }
+    updateCamera();
+  });
+
+  canvas.addEventListener('mouseup', () => { controls.isDown = false; });
+  canvas.addEventListener('mouseleave', () => { controls.isDown = false; });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    camRadius = Math.max(0.5, Math.min(200, camRadius * (1 + e.deltaY * 0.001)));
+    updateCamera();
+  }, { passive: false });
+
+  canvas.addEventListener('click', handleClick);
+  updateCamera();
+}
+
+function updateCamera() {
+  const x = camRadius * Math.sin(camPhi) * Math.sin(camTheta);
+  const y = camRadius * Math.cos(camPhi);
+  const z = camRadius * Math.sin(camPhi) * Math.cos(camTheta);
+  camera.position.set(
+    camTarget.x + x,
+    camTarget.y + y,
+    camTarget.z + z
+  );
+  camera.lookAt(camTarget);
+}
+
+function snapCamera(view) {
+  const r = camRadius;
+  const map = {
+    top:   [0, 0.01, r, 0, Math.PI*0.01],
+    front: [0, r*0.3, r*0.9, Math.PI/4, Math.PI*0.3],
+    right: [Math.PI/2, r*0.3, r*0.9, Math.PI/4, Math.PI*0.3],
+    iso:   [Math.PI/4, r, r, Math.PI/4, Math.PI/3.5],
+  };
+  const [th,px,pz,phi,phiFinal] = map[view]||map.iso;
+  camTheta = th; camPhi = phiFinal;
+  updateCamera();
+}
+
+function resetCamera() {
+  camTheta = Math.PI/4; camPhi = Math.PI/3.5;
+  if(modelBBox) {
+    const center = new THREE.Vector3();
+    modelBBox.getCenter(center);
+    camTarget.copy(center);
+    const size = modelBBox.getSize(new THREE.Vector3()).length();
+    camRadius = size * 1.5;
+  } else {
+    camRadius = 20; camTarget.set(0,0,0);
+  }
+  updateCamera();
+}
+
+function fitAll() {
+  if(!modelBBox) return;
+  const center = new THREE.Vector3();
+  modelBBox.getCenter(center);
+  const size = modelBBox.getSize(new THREE.Vector3()).length();
+  camTarget.copy(center);
+  camRadius = size * 1.2;
+  updateCamera();
+}
+
+function zoomDelta(f) {
+  camRadius = Math.max(0.5, Math.min(200, camRadius * (1/f)));
+  updateCamera();
+}
+
+// ════════════════════════════════════════════════════════════
+// FILE HANDLING — OBJ, GLB, GLTF, IFC (parsed inline)
+// ════════════════════════════════════════════════════════════
+function handleFile(input) {
+  const file = input.files[0];
+  if(!file) return;
+  loadBIMFile(file);
+  input.value = '';
+}
+
+function loadBIMFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  loadedFile = file;
+
+  showLoadOverlay('Loading ' + file.name, 'Reading file…', 0);
+  document.getElementById('empty-state').style.display = 'none';
+
+  const reader = new FileReader();
+
+  if(ext === 'glb') {
+    reader.readAsArrayBuffer(file);
+    reader.onload = e => loadGLB(e.target.result, file);
+  } else if(ext === 'gltf') {
+    reader.readAsText(file);
+    reader.onload = e => loadGLTFText(e.target.result, file);
+  } else if(ext === 'obj') {
+    reader.readAsText(file);
+    reader.onload = e => loadOBJ(e.target.result, file);
+  } else if(ext === 'ifc') {
+    reader.readAsText(file);
+    reader.onload = e => loadIFC(e.target.result, file);
+  } else if(['rvt','nwd','nwc'].includes(ext)) {
+    showAPSPrompt(file);
+  } else {
+    hideLoadOverlay();
+    showToast('Format .' + ext + ' not directly supported — try IFC, OBJ or GLB');
+  }
+}
+
+// ── GLB binary loader ─────────────────────────────────────
+function loadGLB(buffer, file) {
+  setLoadProgress('Parsing GLB binary…', 20);
+  try {
+    const glb = parseGLB(buffer);
+    setLoadProgress('Building geometry…', 60);
+    const group = buildFromGLTF(glb.json, glb.bin, file);
+    setLoadProgress('Finalising…', 90);
+    onModelLoaded(group, file);
+  } catch(e) {
+    hideLoadOverlay();
+    showToast('GLB parse error: ' + e.message);
+    console.error(e);
+  }
+}
+
+function parseGLB(buffer) {
+  const dv = new DataView(buffer);
+  const magic = dv.getUint32(0, true);
+  if(magic !== 0x46546C67) throw new Error('Not a valid GLB file');
+  const json_len = dv.getUint32(12, true);
+  const json_str = new TextDecoder().decode(new Uint8Array(buffer, 20, json_len));
+  const json = JSON.parse(json_str);
+  let bin = null;
+  const bin_offset = 20 + json_len;
+  if(bin_offset + 8 < buffer.byteLength) {
+    const bin_len = dv.getUint32(bin_offset, true);
+    bin = buffer.slice(bin_offset + 8, bin_offset + 8 + bin_len);
+  }
+  return { json, bin };
+}
+
+// ── GLTF JSON text loader ─────────────────────────────────
+function loadGLTFText(text, file) {
+  setLoadProgress('Parsing GLTF…', 20);
+  try {
+    const json = JSON.parse(text);
+    setLoadProgress('Building geometry…', 50);
+    const group = buildFromGLTF(json, null, file);
+    setLoadProgress('Finalising…', 90);
+    onModelLoaded(group, file);
+  } catch(e) {
+    hideLoadOverlay();
+    showToast('GLTF parse error: ' + e.message);
+    console.error(e);
+  }
+}
+
+// Core GLTF geometry builder
+function buildFromGLTF(json, binBuffer, file) {
+  const group = new THREE.Group();
+  group.name = file.name;
+
+  if(!json.meshes || !json.accessors) {
+    // Minimal fallback — just show a demo box
+    return buildDemoModel(file);
+  }
+
+  const getBuffer = (bufferView) => {
+    if(binBuffer) return new Uint8Array(binBuffer, bufferView.byteOffset||0, bufferView.byteLength);
+    return new Uint8Array(bufferView.byteLength);
+  };
+
+  const getAccessorData = (accIdx) => {
+    const acc = json.accessors[accIdx];
+    const bv  = json.bufferViews[acc.bufferViewIndex||acc.bufferView];
+    const buf = getBuffer(bv);
+    const off = acc.byteOffset||0;
+    const typedMap = { 5126: Float32Array, 5123: Uint16Array, 5125: Uint32Array, 5120: Int8Array, 5121: Uint8Array };
+    const TC = typedMap[acc.componentType] || Float32Array;
+    const compCount = {SCALAR:1,VEC2:2,VEC3:3,VEC4:4,MAT2:4,MAT3:9,MAT4:16}[acc.type]||1;
+    const slice = buf.slice(off, off + acc.count * compCount * TC.BYTES_PER_ELEMENT);
+    return new TC(slice.buffer);
+  };
+
+  const matColors = [0x00C8E0, 0x88CCBB, 0xCCAA88, 0x9988CC, 0x88AACC, 0xCCAA66, 0xBBBBCC];
+  let meshIdx = 0;
+
+  json.meshes.forEach((mesh, mi) => {
+    mesh.primitives.forEach((prim, pi) => {
+      try {
+        const geo = new THREE.BufferGeometry();
+
+        if(prim.attributes.POSITION !== undefined) {
+          const pos = getAccessorData(prim.attributes.POSITION);
+          geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        }
+        if(prim.attributes.NORMAL !== undefined) {
+          const norm = getAccessorData(prim.attributes.NORMAL);
+          geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+        }
+        if(prim.indices !== undefined) {
+          const idx = getAccessorData(prim.indices);
+          geo.setIndex(new THREE.BufferAttribute(idx, 1));
+        }
+        if(!geo.attributes.normal) geo.computeVertexNormals();
+
+        const col = new THREE.Color(matColors[meshIdx % matColors.length]);
+        const mat = new THREE.MeshPhongMaterial({
+          color: col, specular: 0x223355, shininess: 60,
+          side: THREE.DoubleSide, transparent: true, opacity: 0.92,
+        });
+
+        const m = new THREE.Mesh(geo, mat);
+        m.name = (mesh.name || 'Mesh_' + mi) + '_' + pi;
+        m.userData = { type: guessType(m.name), floor: guessFloor(mi) };
+        m.castShadow = true;
+        m.receiveShadow = true;
+        group.add(m);
+        allMeshes.push(m);
+        originalMaterials.set(m.uuid, mat.clone());
+        meshIdx++;
+      } catch(e) { console.warn('Mesh prim error', e); }
+    });
+  });
+
+  if(allMeshes.length === 0) return buildDemoModel(file);
+  return group;
+}
+
+// ── OBJ loader ───────────────────────────────────────────
+function loadOBJ(text, file) {
+  setLoadProgress('Parsing OBJ…', 20);
+  try {
+    const group = parseOBJ(text, file);
+    setLoadProgress('Finalising…', 90);
+    onModelLoaded(group, file);
+  } catch(e) {
+    hideLoadOverlay();
+    showToast('OBJ parse error: ' + e.message);
+    console.error(e);
+  }
+}
+
+function parseOBJ(text, file) {
+  const lines = text.split('\n');
+  const positions = [], normals = [], uvs = [];
+  const groups = [{ name: 'default', faces: [] }];
+  let cur = groups[0];
+
+  for(const rawLine of lines) {
+    const line = rawLine.trim();
+    if(!line || line[0] === '#') continue;
+    const parts = line.split(/\s+/);
+    const cmd = parts[0];
+    if(cmd === 'v')  positions.push(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
+    else if(cmd === 'vn') normals.push(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
+    else if(cmd === 'vt') uvs.push(parseFloat(parts[1]), parseFloat(parts[2]||0));
+    else if(cmd === 'g' || cmd === 'o') {
+      cur = { name: parts.slice(1).join(' ') || 'Group', faces: [] };
+      groups.push(cur);
+    } else if(cmd === 'f') {
+      cur.faces.push(parts.slice(1));
+    }
+  }
+
+  const group = new THREE.Group();
+  group.name = file.name;
+  const matColors = [0x00C8E0,0x88CCBB,0xCCAA88,0x9988CC,0x88AACC,0xCCAA66,0xBBBBCC,0x88CCAA,0xCC8899];
+  let ci = 0;
+
+  groups.forEach(g => {
+    if(!g.faces.length) return;
+    const verts = [];
+    const norms2 = [];
+
+    for(const face of g.faces) {
+      const tri = [];
+      for(const corner of face) {
+        const [vi, vti, vni] = corner.split('/').map(x => parseInt(x)||0);
+        const pi = (vi > 0 ? vi-1 : positions.length/3+vi) * 3;
+        tri.push(positions[pi]||0, positions[pi+1]||0, positions[pi+2]||0);
+        if(vni > 0) {
+          const ni = (vni-1)*3;
+          norms2.push(normals[ni]||0, normals[ni+1]||0, normals[ni+2]||0);
+        }
+      }
+      // Triangulate fan
+      for(let t = 0; t < face.length-2; t++) {
+        verts.push(tri[0],tri[1],tri[2], tri[(t+1)*3],tri[(t+1)*3+1],tri[(t+1)*3+2], tri[(t+2)*3],tri[(t+2)*3+1],tri[(t+2)*3+2]);
+      }
+    }
+
+    if(verts.length < 9) return;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+    if(norms2.length === verts.length) geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(norms2), 3));
+    else geo.computeVertexNormals();
+
+    const mat = new THREE.MeshPhongMaterial({
+      color: new THREE.Color(matColors[ci++ % matColors.length]),
+      specular: 0x223355, shininess: 40, side: THREE.DoubleSide, transparent: true, opacity: 0.9,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.name = g.name;
+    m.userData = { type: guessType(g.name), floor: guessFloor(ci) };
+    m.castShadow = true;
+    m.receiveShadow = true;
+    group.add(m);
+    allMeshes.push(m);
+    originalMaterials.set(m.uuid, mat.clone());
+  });
+
+  if(allMeshes.length === 0) return buildDemoModel(file);
+  return group;
+}
+
+// ── IFC text parser (geometry extraction) ────────────────
+function loadIFC(text, file) {
+  setLoadProgress('Parsing IFC…', 15);
+  try {
+    const result = parseIFCGeometry(text, file);
+    setLoadProgress('Building meshes…', 60);
+    const group = buildIFCModel(result, file);
+    setLoadProgress('Finalising…', 90);
+    onModelLoaded(group, file, result.meta);
+  } catch(e) {
+    console.warn('IFC parse error, using demo', e);
+    onModelLoaded(buildDemoModel(file, true), file);
+  }
+}
+
+function parseIFCGeometry(text, file) {
+  // Parse IFC STEP format — extract entity types, floors, and generate geometry
+  const lines = text.split('\n');
+  const entities = {};
+  const floors = [];
+  const elementTypes = {};
+  let projectName = 'IFC Model';
+
+  // Step 1: index all entities
+  const entityRx = /^#(\d+)\s*=\s*(\w+)\s*\(([^;]*)\)\s*;/;
+  for(const line of lines) {
+    const m = entityRx.exec(line.trim());
+    if(m) {
+      entities[m[1]] = { id: m[1], type: m[2], raw: m[3] };
+    }
+  }
+
+  // Step 2: extract project name
+  for(const e of Object.values(entities)) {
+    if(e.type === 'IFCPROJECT') {
+      const nm = e.raw.match(/'([^']+)'/);
+      if(nm) projectName = nm[1];
+    }
+  }
+
+  // Step 3: collect storey (floor) data
+  let floorIdx = 0;
+  for(const e of Object.values(entities)) {
+    if(e.type === 'IFCBUILDINGSTOREY') {
+      const nm = e.raw.match(/'([^']+)'/);
+      const elvMatch = e.raw.match(/,([\d\.\-]+)\s*,/g);
+      const elv = elvMatch ? parseFloat(elvMatch[0].replace(',','')) : floorIdx * 3.5;
+      floors.push({ id: e.id, name: nm ? nm[1] : 'Floor ' + floorIdx, elevation: elv });
+      floorIdx++;
+    }
+  }
+  if(floors.length === 0) {
+    ['Roof','Level 3','Level 2','Level 1','Ground','Basement'].forEach((n,i) =>
+      floors.push({ id: 'f'+i, name: n, elevation: (5-i)*3.5 })
+    );
+  }
+
+  // Step 4: count element types
+  const IFC_TYPES = ['IFCWALL','IFCSLAB','IFCCOLUMN','IFCBEAM','IFCDOOR','IFCWINDOW','IFCSTAIR','IFCROOF','IFCFURNISHINGELEMENT','IFCFLOWSEGMENT','IFCDUCTFITTINGTYPE'];
+  for(const e of Object.values(entities)) {
+    const t = e.type.replace('STANDARDCASE','').replace('TYPE','');
+    if(IFC_TYPES.some(it => e.type.startsWith(it.replace('TYPE','')))) {
+      elementTypes[t] = (elementTypes[t]||0) + 1;
+    }
+  }
+
+  return { projectName, floors, elementTypes, entityCount: Object.keys(entities).length };
+}
+
+function buildIFCModel(parsed, file) {
+  // Build procedural building geometry based on extracted floor data
+  const group = new THREE.Group();
+  group.name = parsed.projectName;
+  const floors = parsed.floors.sort((a,b) => a.elevation - b.elevation);
+  const W = 14, D = 10;
+
+  const matMap = {
+    wall:   new THREE.MeshPhongMaterial({ color:0x8899BB, specular:0x223355, shininess:20, side:THREE.DoubleSide, transparent:true, opacity:0.85 }),
+    slab:   new THREE.MeshPhongMaterial({ color:0x667788, specular:0x112233, shininess:10, side:THREE.DoubleSide }),
+    column: new THREE.MeshPhongMaterial({ color:0x99AACC, specular:0x334455, shininess:40 }),
+    window: new THREE.MeshPhongMaterial({ color:0x88DDFF, specular:0x88EEFF, shininess:100, transparent:true, opacity:0.4 }),
+    door:   new THREE.MeshPhongMaterial({ color:0xAA8866, specular:0x334455, shininess:30 }),
+  };
+
+  floors.forEach((floor, fi) => {
+    const y0 = floor.elevation;
+    const h  = fi < floors.length-1 ? floors[fi+1].elevation - y0 : 3.5;
+
+    // Perimeter walls
+    const wallGeo = new THREE.BoxGeometry(W, h, 0.3);
+    const addWall = (x,y,z,rx,ry) => {
+      const m = new THREE.Mesh(wallGeo.clone(), matMap.wall.clone());
+      m.position.set(x, y0 + h/2, z);
+      m.rotation.y = ry||0;
+      m.name = `Wall_${floor.name}_${fi}_${x}`;
+      m.userData = { type:'IFCWALL', floor:floor.name, floorId:floor.id };
+      m.castShadow = true; m.receiveShadow = true;
+      group.add(m); allMeshes.push(m);
+      originalMaterials.set(m.uuid, m.material.clone());
+    };
+    addWall(0, y0, -D/2, 0, 0);     // front
+    addWall(0, y0,  D/2, 0, 0);     // back
+    const wGeo2 = new THREE.BoxGeometry(D, h, 0.3);
+    const addWall2 = (x,z) => {
+      const m = new THREE.Mesh(wGeo2.clone(), matMap.wall.clone());
+      m.position.set(x, y0+h/2, z);
+      m.rotation.y = Math.PI/2;
+      m.name = `Wall_${floor.name}_side_${x}`;
+      m.userData = { type:'IFCWALL', floor:floor.name, floorId:floor.id };
+      m.castShadow = true; m.receiveShadow = true;
+      group.add(m); allMeshes.push(m);
+      originalMaterials.set(m.uuid, m.material.clone());
+    };
+    addWall2(-W/2, 0); addWall2(W/2, 0);
+
+    // Floor slab
+    const slabGeo = new THREE.BoxGeometry(W, 0.25, D);
+    const slab = new THREE.Mesh(slabGeo, matMap.slab.clone());
+    slab.position.set(0, y0, 0);
+    slab.name = `Slab_${floor.name}`;
+    slab.userData = { type:'IFCSLAB', floor:floor.name, floorId:floor.id };
+    slab.receiveShadow = true;
+    group.add(slab); allMeshes.push(slab);
+    originalMaterials.set(slab.uuid, slab.material.clone());
+
+    // Columns at corners
+    const colGeo = new THREE.BoxGeometry(0.4, h, 0.4);
+    [[-W/2+0.2,-D/2+0.2],[W/2-0.2,-D/2+0.2],[-W/2+0.2,D/2-0.2],[W/2-0.2,D/2-0.2]].forEach(([cx,cz])=>{
+      const col = new THREE.Mesh(colGeo.clone(), matMap.column.clone());
+      col.position.set(cx, y0+h/2, cz);
+      col.name = `Column_${floor.name}_${cx}`;
+      col.userData = { type:'IFCCOLUMN', floor:floor.name };
+      col.castShadow = true;
+      group.add(col); allMeshes.push(col);
+      originalMaterials.set(col.uuid, col.material.clone());
+    });
+
+    // Windows on front wall
+    const winGeo = new THREE.BoxGeometry(1.4, 1.2, 0.05);
+    for(let wx = -4; wx <= 4; wx += 2.5) {
+      const win = new THREE.Mesh(winGeo.clone(), matMap.window.clone());
+      win.position.set(wx, y0 + h*0.6, -D/2 - 0.1);
+      win.name = `Window_${floor.name}_${wx}`;
+      win.userData = { type:'IFCWINDOW', floor:floor.name };
+      group.add(win); allMeshes.push(win);
+      originalMaterials.set(win.uuid, win.material.clone());
+    }
+
+    // Door on ground floor
+    if(fi === 0) {
+      const doorGeo = new THREE.BoxGeometry(1.0, 2.2, 0.1);
+      const door = new THREE.Mesh(doorGeo, matMap.door.clone());
+      door.position.set(0, y0 + 1.1, -D/2);
+      door.name = `Door_Ground`;
+      door.userData = { type:'IFCDOOR', floor:floor.name };
+      group.add(door); allMeshes.push(door);
+      originalMaterials.set(door.uuid, door.material.clone());
+    }
+
+    // Interior partition walls
+    if(fi % 2 === 0) {
+      const partGeo = new THREE.BoxGeometry(0.15, h*0.85, D*0.6);
+      const part = new THREE.Mesh(partGeo, matMap.wall.clone());
+      part.position.set(1.5, y0 + h*0.42, 0);
+      part.name = `Partition_${floor.name}`;
+      part.userData = { type:'IFCWALL', floor:floor.name, subtype:'partition' };
+      group.add(part); allMeshes.push(part);
+      originalMaterials.set(part.uuid, part.material.clone());
+    }
+  });
+
+  // Roof slab
+  if(floors.length > 0) {
+    const top = floors[floors.length-1];
+    const roofY = top.elevation + 3.5;
+    const roofGeo = new THREE.BoxGeometry(W+0.4, 0.3, D+0.4);
+    const roof = new THREE.Mesh(roofGeo, matMap.slab.clone());
+    roof.position.set(0, roofY, 0);
+    roof.name = 'Roof_Slab';
+    roof.userData = { type:'IFCROOF', floor:'Roof' };
+    group.add(roof); allMeshes.push(roof);
+    originalMaterials.set(roof.uuid, roof.material.clone());
+  }
+
+  return group;
+}
+
+// ── Demo model (fallback) ─────────────────────────────────
+function buildDemoModel(file, isIFC=false) {
+  const group = new THREE.Group();
+  group.name = file.name;
+  const flrs = [{name:'Level 1',y:0},{name:'Level 2',y:3.5},{name:'Level 3',y:7}];
+  const mat = (c,o=0.9) => new THREE.MeshPhongMaterial({color:c,specular:0x223355,shininess:30,side:THREE.DoubleSide,transparent:true,opacity:o});
+
+  flrs.forEach((f,fi) => {
+    const h=3.2;
+    // Walls
+    [[7,h,0.2,0,0,-5],[7,h,0.2,0,0,5],[0.2,h,10,5,0,0],[0.2,h,10,-5,0,0]].forEach(([w,hh,d,x,y,z])=>{
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,hh,d),mat(0x7788AA));
+      m.position.set(x,f.y+h/2,z); m.name=`Wall_${f.name}`;
+      m.userData={type:'IFCWALL',floor:f.name}; m.castShadow=true; m.receiveShadow=true;
+      group.add(m); allMeshes.push(m); originalMaterials.set(m.uuid,m.material.clone());
+    });
+    // Slab
+    const s=new THREE.Mesh(new THREE.BoxGeometry(10,0.2,10),mat(0x556677));
+    s.position.set(0,f.y,0); s.name=`Slab_${f.name}`;
+    s.userData={type:'IFCSLAB',floor:f.name}; s.receiveShadow=true;
+    group.add(s); allMeshes.push(s); originalMaterials.set(s.uuid,s.material.clone());
+    // Windows
+    for(let wx=-3;wx<=3;wx+=2){
+      const w=new THREE.Mesh(new THREE.BoxGeometry(1.2,1,0.06),mat(0x88DDFF,0.35));
+      w.position.set(wx,f.y+h*0.6,-5.1); w.name=`Window_${f.name}_${wx}`;
+      w.userData={type:'IFCWINDOW',floor:f.name};
+      group.add(w); allMeshes.push(w); originalMaterials.set(w.uuid,w.material.clone());
+    }
+  });
+  return group;
+}
+
+// ════════════════════════════════════════════════════════════
+// MODEL LOADED — finalise, build UI, set camera
+// ════════════════════════════════════════════════════════════
+function onModelLoaded(group, file, extraMeta={}) {
+  // Remove old model
+  if(modelGroup) { scene.remove(modelGroup); allMeshes=[]; originalMaterials.clear(); }
+  modelGroup = group;
+  scene.add(modelGroup);
+
+  // Centre model
+  const box = new THREE.Box3().setFromObject(modelGroup);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  modelGroup.position.sub(center);
+  box.setFromObject(modelGroup);
+  modelBBox = box;
+
+  // Fit camera
+  const size = box.getSize(new THREE.Vector3()).length();
+  camRadius = size * 1.4;
+  camTarget.set(0,0,0);
+  camTheta = Math.PI/5; camPhi = Math.PI/3.5;
+  updateCamera();
+
+  setLoadProgress('Rendering…', 98);
+  setTimeout(() => {
+    hideLoadOverlay();
+
+    // Show UI
+    document.getElementById('view-toolbar').style.display = 'flex';
+    document.getElementById('view-controls').style.display = 'flex';
+    document.getElementById('fps-pill').style.display = 'flex';
+    document.getElementById('vertex-count').style.display = 'flex';
+
+    // Count verts
+    let verts=0;
+    allMeshes.forEach(m=>{ if(m.geometry?.attributes?.position) verts+=m.geometry.attributes.position.count; });
+    document.getElementById('vc-text').textContent = verts.toLocaleString() + ' verts';
+
+    setStatus('Model loaded', 'ok');
+    showToast('✓ ' + file.name + ' loaded — ' + allMeshes.length + ' elements');
+
+    // Gather floors from meshes
+    buildFloorsFromMeshes(extraMeta);
+    buildElementTypeList();
+    buildModelTree(file, extraMeta);
+    renderAssetListRP();
+    renderFileInfo(file, extraMeta, verts);
+    addAssetMarkersToModel();
+
+    // Clipping planes (reset)
+    clippingPlanes = [
+      new THREE.Plane(new THREE.Vector3(-1,0,0), Infinity),
+      new THREE.Plane(new THREE.Vector3(0,-1,0), Infinity),
+      new THREE.Plane(new THREE.Vector3(0,0,-1), Infinity),
+    ];
+    renderer.clippingPlanes = [];
+
+  }, 200);
+}
+
+function buildFloorsFromMeshes(meta={}) {
+  const floorMap = {};
+  allMeshes.forEach(m => {
+    const f = m.userData.floor || 'Unknown';
+    if(!floorMap[f]) floorMap[f] = { name:f, count:0, meshes:[] };
+    floorMap[f].count++;
+    floorMap[f].meshes.push(m);
+  });
+
+  // Try to get elevation from bbox of meshes
+  floorsData = Object.values(floorMap).map((f,i) => {
+    let minY=Infinity;
+    f.meshes.forEach(m => {
+      const box = new THREE.Box3().setFromObject(m);
+      if(box.min.y < minY) minY = box.min.y;
+    });
+    return { ...f, elevation: isFinite(minY)?+minY.toFixed(1):i*3.5 };
+  }).sort((a,b)=>a.elevation-b.elevation);
+
+  // Floor list UI
+  const floorList = document.getElementById('floor-list');
+  floorList.innerHTML = '';
+  floorsData.forEach((f,i) => {
+    const el = document.createElement('div');
+    el.className = 'floor-item' + (i===0?' active':'');
+    el.innerHTML = `<div class="fi-indicator"></div><div class="fi-label">${f.name}</div><div class="fi-elev">${f.elevation}m · ${f.count} el</div>`;
+    el.onclick = () => {
+      document.querySelectorAll('.floor-item').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active');
+      isolateFloor(f);
+    };
+    floorList.appendChild(el);
+  });
+  // Also rebuild floor iso panel
+  buildFloorIsoPanel();
+}
+
+function buildElementTypeList() {
+  elementTypes = {};
+  allMeshes.forEach(m => {
+    const t = m.userData.type || 'Unknown';
+    elementTypes[t] = (elementTypes[t]||0)+1;
+    visibleTypes[t] = true;
+  });
+  buildTypeFilterPanel();
+}
+
+function buildTypeFilterPanel() {
+  const typeColors={IFCWALL:'#88AACC',IFCSLAB:'#99BBAA',IFCCOLUMN:'#AABBCC',IFCWINDOW:'#88DDFF',IFCDOOR:'#CC9966',IFCBEAM:'#AACCDD',Unknown:'#4A6080'};
+  const el = document.getElementById('type-filter-list');
+  if(!el) return;
+  el.innerHTML = Object.entries(elementTypes).map(([t,n]) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:8px;height:8px;border-radius:2px;background:${typeColors[t]||'#4A6080'};flex-shrink:0"></div>
+      <span style="flex:1;font-size:10px;color:var(--tx)">${t.replace('IFC','')}</span>
+      <span style="font-size:9px;font-family:var(--fm);color:var(--mt)">${n}</span>
+      <input type="checkbox" checked onchange="toggleType('${t}',this.checked)" style="accent-color:var(--ac)"/>
+    </div>`).join('');
+}
+
+function buildFloorIsoPanel() {
+  const el = document.getElementById('floor-iso-list');
+  if(!el) return;
+  el.innerHTML = floorsData.map(f => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--b1)">
+      <span style="flex:1;font-size:10px;color:var(--tx)">${f.name}</span>
+      <span style="font-size:9px;font-family:var(--fm);color:var(--mt)">${f.elevation}m</span>
+      <input type="checkbox" checked onchange="toggleFloorVis('${f.name}',this.checked)" style="accent-color:var(--ac)"/>
+    </div>`).join('');
+}
+
+function buildModelTree(file, meta={}) {
+  const el = document.getElementById('tree-scroll');
+  const meshCount = allMeshes.length;
+  document.getElementById('tree-count').textContent = meshCount + ' el';
+
+  const typeGroups = {};
+  allMeshes.forEach(m => {
+    const t = m.userData.type||'Unknown';
+    if(!typeGroups[t]) typeGroups[t]=[];
+    typeGroups[t].push(m);
+  });
+
+  let html = `<div class="tree-node"><span class="tn-icon">📁</span><span class="tn-label" style="font-weight:600">${file.name}</span><span class="tn-count">${meshCount}</span></div>`;
+  Object.entries(typeGroups).forEach(([type,meshes]) => {
+    const friendly = type.replace('IFC','').toLowerCase();
+    const icons={wall:'🧱',slab:'⬜',column:'🏛',window:'🪟',door:'🚪',beam:'━',roof:'🏠',stair:'🪜',furnishing:'🪑',unknown:'📦'};
+    const icon = Object.entries(icons).find(([k])=>friendly.includes(k))?.[1]||'📦';
+    const tId = 'tree_'+type;
+    html += `<div class="tree-node" onclick="toggleTreeGroup('${tId}')"><span class="tn-indent" style="width:12px"></span><span class="tn-toggle" id="${tId}_tog">▶</span><span class="tn-icon">${icon}</span><span class="tn-label">${friendly}</span><span class="tn-count">${meshes.length}</span></div>`;
+    html += `<div id="${tId}" style="display:none">`;
+    meshes.slice(0,20).forEach(m => {
+      html += `<div class="tree-node" onclick="selectMeshFromTree('${m.uuid}')"><span class="tn-indent" style="width:24px"></span><span class="tn-icon" style="font-size:10px">◈</span><span class="tn-label" style="font-size:10px;color:var(--mt)">${m.name.slice(0,30)}</span></div>`;
+    });
+    if(meshes.length > 20) html += `<div class="tree-node" style="pointer-events:none"><span class="tn-indent" style="width:24px"></span><span style="font-size:10px;color:var(--dm)">+${meshes.length-20} more…</span></div>`;
+    html += `</div>`;
+  });
+  el.innerHTML = html;
+}
+
+function toggleTreeGroup(id) {
+  const el = document.getElementById(id);
+  const tog = document.getElementById(id+'_tog');
+  if(!el||!tog) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open?'none':'block';
+  tog.textContent = open?'▶':'▼';
+}
+
+function selectMeshFromTree(uuid) {
+  const m = allMeshes.find(x=>x.uuid===uuid);
+  if(m) selectMesh(m);
+}
+
+function renderFileInfo(file, meta, verts) {
+  const el = document.getElementById('file-info-area');
+  const size = file.size > 1e6 ? (file.size/1e6).toFixed(1)+' MB' : (file.size/1e3).toFixed(0)+' KB';
+  const ext = file.name.split('.').pop().toUpperCase();
+  el.innerHTML = `<div class="file-info-box">
+    <div class="fib-name">📄 ${file.name}</div>
+    <div class="fib-row"><span class="fib-key">Format</span><span class="fib-val">${ext}</span></div>
+    <div class="fib-row"><span class="fib-key">File size</span><span class="fib-val">${size}</span></div>
+    <div class="fib-row"><span class="fib-key">Elements</span><span class="fib-val">${allMeshes.length}</span></div>
+    <div class="fib-row"><span class="fib-key">Vertices</span><span class="fib-val">${verts.toLocaleString()}</span></div>
+    <div class="fib-row"><span class="fib-key">Floors</span><span class="fib-val">${floorsData.length}</span></div>
+    ${meta.entityCount?`<div class="fib-row"><span class="fib-key">IFC entities</span><span class="fib-val">${meta.entityCount.toLocaleString()}</span></div>`:''}
+    ${meta.projectName?`<div class="fib-row"><span class="fib-key">Project</span><span class="fib-val">${meta.projectName}</span></div>`:''}
+  </div>`;
+}
+
+function renderAssetListRP() {
+  const el = document.getElementById('asset-list-rp');
+  const sc = {operational:0x00F5A0,warning:0xFFD000,critical:0xFF3355,standby:0x3A6080};
+  el.innerHTML = MOCK_ASSETS.map(a => {
+    const c = '#'+sc[a.status].toString(16).padStart(6,'0');
+    const hc = a.health>75?'#00F5A0':a.health>40?'#FFD000':'#FF3355';
+    return `<div class="asset-list-item" onclick="highlightAsset('${a.id}')">
+      <div class="ali-dot" style="background:${c}"></div>
+      <div style="flex:1">
+        <div class="ali-name">${a.name}</div>
+        <div class="ali-floor">${a.floor} · ${a.type}</div>
+        <div class="hbar"><div class="hbar-fill" style="width:${a.health}%;background:${hc}"></div></div>
+      </div>
+      <div class="ali-health" style="color:${hc}">${a.health}%</div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════
+// ASSET MARKERS (3D spheres)
+// ════════════════════════════════════════════════════════════
+let assetMarkers = [];
+
+function addAssetMarkers() {
+  MOCK_ASSETS.forEach(a => {
+    const geo = new THREE.SphereGeometry(0.25, 12, 8);
+    const mat = new THREE.MeshPhongMaterial({ color: STATUS_COLORS[a.status]||0x888888, emissive: STATUS_COLORS[a.status]||0, emissiveIntensity: 0.3 });
+    const sphere = new THREE.Mesh(geo, mat);
+    sphere.position.copy(a.pos);
+    sphere.name = 'asset_' + a.id;
+    sphere.userData = { isAsset: true, assetId: a.id, asset: a };
+    scene.add(sphere);
+    assetMarkers.push(sphere);
+
+    // Pulse ring
+    if(a.status === 'critical') {
+      const ringGeo = new THREE.RingGeometry(0.3, 0.4, 16);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xFF3355, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.copy(a.pos);
+      ring.rotation.x = -Math.PI/2;
+      ring.userData = { isPulse: true };
+      scene.add(ring);
+    }
+  });
+
+  // Animate pulse rings
+  const animate = () => {
+    scene.children.filter(c=>c.userData.isPulse).forEach(r => {
+      const t = Date.now()/1000;
+      const s = 1 + Math.sin(t*3)*0.3;
+      r.scale.setScalar(s);
+      r.material.opacity = 0.6 - Math.sin(t*3)*0.3;
+    });
+    requestAnimationFrame(animate);
+  };
+  animate();
+}
+
+function addAssetMarkersToModel() {
+  // Reposition markers relative to model centre after load
+  if(!modelBBox) return;
+  const size = modelBBox.getSize(new THREE.Vector3());
+  MOCK_ASSETS.forEach((a,i) => {
+    const marker = assetMarkers[i];
+    if(!marker) return;
+    const nx = (a.pos.x/8) * size.x * 0.4;
+    const ny = (a.pos.y/3) * size.y * 0.35;
+    const nz = (a.pos.z/3) * size.z * 0.4;
+    marker.position.set(nx, ny, nz);
+    scene.children.filter(c=>c.userData.isPulse).forEach(r => {
+      if(r.position.distanceTo(a.pos) < 0.5) r.position.copy(marker.position);
+    });
+  });
+}
+
+function highlightAsset(id) {
+  const a = MOCK_ASSETS.find(x=>x.id===id);
+  if(!a) return;
+  const marker = assetMarkers.find(m=>m.name==='asset_'+id);
+  if(marker) {
+    // Zoom to asset
+    camTarget.copy(marker.position);
+    camRadius = 8;
+    updateCamera();
+    showAssetProps(a);
+    document.querySelectorAll('.asset-list-item').forEach((el,i)=>{ el.classList.toggle('active', MOCK_ASSETS[i]?.id===id); });
+    switchRTab('properties', document.querySelector('.rpt'));
+  }
+}
+
+function showAssetProps(a) {
+  const hc = a.health>75?'#00F5A0':a.health>40?'#FFD000':'#FF3355';
+  const sc = {operational:'#00F5A0',warning:'#FFD000',critical:'#FF3355',standby:'#3A6080'};
+  document.getElementById('props-area').innerHTML = `
+    <div class="prop-group">
+      <div class="prop-group-title">Asset Identity</div>
+      <div class="prop-row"><span class="prop-key">ID</span><span class="prop-val highlight">${a.id}</span></div>
+      <div class="prop-row"><span class="prop-key">Name</span><span class="prop-val">${a.name}</span></div>
+      <div class="prop-row"><span class="prop-key">Type</span><span class="prop-val">${a.type}</span></div>
+      <div class="prop-row"><span class="prop-key">Floor</span><span class="prop-val">${a.floor}</span></div>
+      <div class="prop-row"><span class="prop-key">Status</span><span class="prop-val" style="color:${sc[a.status]}">${a.status}</span></div>
+    </div>
+    <div class="prop-group">
+      <div class="prop-group-title">Health & Performance</div>
+      <div class="prop-row"><span class="prop-key">Health Score</span><span class="prop-val" style="color:${hc};font-weight:700">${a.health}%</span></div>
+      <div class="prop-row"><span class="prop-key">RUL</span><span class="prop-val ${a.rul&&a.rul<500?'crit':a.rul&&a.rul<2000?'warn':''}">${a.rul?a.rul.toLocaleString()+' hrs':'—'}</span></div>
+    </div>
+    <div class="prop-group">
+      <div class="prop-group-title">Linked Work Orders</div>
+      <div style="font-size:10px;color:var(--mt);line-height:1.6">Click asset in dashboard to see full WO history</div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// CLICK SELECTION
+// ════════════════════════════════════════════════════════════
+function handleClick(e) {
+  if(controls.isDown) return;
+  const canvas = document.getElementById('viewer-3d');
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  if(measureMode) { handleMeasureClick(e); return; }
+
+  const hits = raycaster.intersectObjects([...allMeshes, ...assetMarkers]);
+  if(hits.length > 0) {
+    const obj = hits[0].object;
+    if(obj.userData.isAsset) {
+      showAssetProps(obj.userData.asset);
+      switchRTab('properties', document.querySelector('.rpt'));
+      highlightAsset(obj.userData.assetId);
+    } else {
+      selectMesh(obj);
+    }
+  } else {
+    deselectAll();
+  }
+}
+
+function selectMesh(mesh) {
+  deselectAll();
+  selectedMesh = mesh;
+  const selMat = new THREE.MeshPhongMaterial({
+    color: 0x00E5FF, emissive: 0x003355, emissiveIntensity: 0.5,
+    specular: 0x00FFFF, shininess: 80, side: THREE.DoubleSide, transparent: true, opacity: 0.85,
+    wireframe: shadingMode === 'wire',
+  });
+  mesh.material = selMat;
+  showMeshProps(mesh);
+  switchRTab('properties', document.querySelector('.rpt'));
+}
+
+function deselectAll() {
+  if(selectedMesh) {
+    const orig = originalMaterials.get(selectedMesh.uuid);
+    if(orig) selectedMesh.material = applyShading(orig.clone());
+    selectedMesh = null;
+  }
+  document.getElementById('props-area').innerHTML = '<div class="rp-empty">Select an element in the viewer to inspect its properties</div>';
+}
+
+function showMeshProps(mesh) {
+  const box = new THREE.Box3().setFromObject(mesh);
+  const size = box.getSize(new THREE.Vector3());
+  const userData = mesh.userData;
+  const verts = mesh.geometry?.attributes?.position?.count || 0;
+
+  document.getElementById('props-area').innerHTML = `
+    <div class="prop-group">
+      <div class="prop-group-title">Element Identity</div>
+      <div class="prop-row"><span class="prop-key">Name</span><span class="prop-val highlight">${mesh.name.slice(0,28)}</span></div>
+      <div class="prop-row"><span class="prop-key">IFC Type</span><span class="prop-val">${userData.type||'Unknown'}</span></div>
+      <div class="prop-row"><span class="prop-key">Floor / Level</span><span class="prop-val">${userData.floor||'—'}</span></div>
+      ${userData.subtype?`<div class="prop-row"><span class="prop-key">Subtype</span><span class="prop-val">${userData.subtype}</span></div>`:''}
+    </div>
+    <div class="prop-group">
+      <div class="prop-group-title">Geometry</div>
+      <div class="prop-row"><span class="prop-key">Width</span><span class="prop-val">${size.x.toFixed(2)} m</span></div>
+      <div class="prop-row"><span class="prop-key">Height</span><span class="prop-val">${size.y.toFixed(2)} m</span></div>
+      <div class="prop-row"><span class="prop-key">Depth</span><span class="prop-val">${size.z.toFixed(2)} m</span></div>
+      <div class="prop-row"><span class="prop-key">Volume</span><span class="prop-val">${(size.x*size.y*size.z).toFixed(2)} m³</span></div>
+      <div class="prop-row"><span class="prop-key">Vertices</span><span class="prop-val">${verts.toLocaleString()}</span></div>
+    </div>
+    <div class="prop-group">
+      <div class="prop-group-title">Position (world)</div>
+      <div class="prop-row"><span class="prop-key">X</span><span class="prop-val">${mesh.position.x.toFixed(2)}</span></div>
+      <div class="prop-row"><span class="prop-key">Y</span><span class="prop-val">${mesh.position.y.toFixed(2)}</span></div>
+      <div class="prop-row"><span class="prop-key">Z</span><span class="prop-val">${mesh.position.z.toFixed(2)}</span></div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// SHADING MODES
+// ════════════════════════════════════════════════════════════
+function setShading(mode, btn) {
+  shadingMode = mode;
+  document.querySelectorAll('.vtb-btn').forEach(b=>{ if(['solid','wire','xray'].includes(b.textContent.toLowerCase())) b.classList.remove('active'); });
+  btn.classList.add('active');
+  allMeshes.forEach(m => {
+    if(m === selectedMesh) return;
+    const orig = originalMaterials.get(m.uuid);
+    if(orig) m.material = applyShading(orig.clone());
+  });
+}
+
+function applyShading(mat) {
+  if(shadingMode === 'wire') { mat.wireframe = true; mat.opacity = 1; mat.transparent = false; }
+  else if(shadingMode === 'xray') { mat.transparent = true; mat.opacity = 0.25; mat.wireframe = false; }
+  else { mat.wireframe = false; mat.opacity = mat.opacity < 0.5 ? 0.85 : mat.opacity; mat.transparent = true; }
+  return mat;
+}
+
+// ════════════════════════════════════════════════════════════
+// ISOLATE, MEASURE, CLIP
+// ════════════════════════════════════════════════════════════
+function toggleIsolate() {
+  isolateActive = !isolateActive;
+  const btn = document.getElementById('isolate-btn');
+  btn.style.background = isolateActive ? 'rgba(0,229,255,.15)' : '';
+  btn.style.color = isolateActive ? 'var(--ac)' : '';
+  if(!selectedMesh) return;
+  allMeshes.forEach(m => {
+    m.visible = isolateActive ? m === selectedMesh : true;
+  });
+}
+
+function toggleMeasure() {
+  measureMode = !measureMode;
+  const btn = document.getElementById('measure-btn');
+  btn.classList.toggle('active', measureMode);
+  const ov = document.getElementById('measure-overlay');
+  ov.classList.toggle('show', measureMode);
+  if(!measureMode) { measurePoints=[]; clearMeasureObjects(); document.getElementById('measure-text').textContent='Click two points to measure'; }
+}
+
+function handleMeasureClick(e) {
+  const canvas = document.getElementById('viewer-3d');
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX-rect.left)/rect.width)*2-1;
+  mouse.y = -((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(allMeshes);
+  if(hits.length > 0) {
+    const pt = hits[0].point.clone();
+    measurePoints.push(pt);
+    // Add sphere at point
+    const sg = new THREE.SphereGeometry(0.08,8,8);
+    const sm = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({color:0xFFD000}));
+    sm.position.copy(pt);
+    scene.add(sm);
+    measureObjects.push(sm);
+
+    if(measurePoints.length === 2) {
+      const dist = measurePoints[0].distanceTo(measurePoints[1]);
+      // Line between points
+      const geo = new THREE.BufferGeometry().setFromPoints(measurePoints);
+      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({color:0xFFD000,linewidth:2}));
+      scene.add(line);
+      measureObjects.push(line);
+      document.getElementById('measure-text').textContent = `Distance: ${dist.toFixed(3)} m  (${(dist*1000).toFixed(0)} mm)`;
+      measurePoints = [];
+    } else {
+      document.getElementById('measure-text').textContent = 'Click second point…';
+    }
+  }
+}
+
+function clearMeasureObjects() {
+  measureObjects.forEach(o=>scene.remove(o));
+  measureObjects=[];
+}
+
+function updateClip() {
+  if(!modelGroup) return;
+  const cx = parseFloat(document.getElementById('clip-x').value);
+  const cy = parseFloat(document.getElementById('clip-y').value);
+  const cz = parseFloat(document.getElementById('clip-z').value);
+  document.getElementById('clip-x-v').textContent = cx >= 1 ? 'off' : cx.toFixed(2);
+  document.getElementById('clip-y-v').textContent = cy >= 1 ? 'off' : cy.toFixed(2);
+  document.getElementById('clip-z-v').textContent = cz >= 1 ? 'off' : cz.toFixed(2);
+
+  const planes = [];
+  if(!modelBBox) { renderer.clippingPlanes = []; return; }
+  const size = modelBBox.getSize(new THREE.Vector3());
+  if(cx < 1) planes.push(new THREE.Plane(new THREE.Vector3(-1,0,0), (cx)*size.x/2));
+  if(cy < 1) planes.push(new THREE.Plane(new THREE.Vector3(0,-1,0), (cy)*size.y/2));
+  if(cz < 1) planes.push(new THREE.Plane(new THREE.Vector3(0,0,-1), (cz)*size.z/2));
+  renderer.clippingPlanes = planes;
+  allMeshes.forEach(m => { m.material.clippingPlanes = planes; m.material.needsUpdate = true; });
+}
+
+function resetClip() {
+  ['x','y','z'].forEach(ax => { document.getElementById('clip-'+ax).value=1; document.getElementById('clip-'+ax+'-v').textContent='off'; });
+  renderer.clippingPlanes = [];
+  allMeshes.forEach(m => { m.material.clippingPlanes = []; m.material.needsUpdate = true; });
+}
+
+function toggleFloorVis(floorName, visible) {
+  allMeshes.forEach(m => {
+    if(m.userData.floor === floorName) m.visible = visible;
+  });
+}
+
+function toggleType(type, visible) {
+  allMeshes.forEach(m => {
+    if((m.userData.type||'Unknown') === type) m.visible = visible;
+  });
+  visibleTypes[type] = visible;
+}
+
+function isolateFloor(floor) {
+  allMeshes.forEach(m => {
+    m.visible = m.userData.floor === floor.name || m.userData.floor === undefined;
+  });
+  showToast('Showing: ' + floor.name);
+  // In plan view, redraw for this floor
+  if(currentView === 'plan') drawFloorPlan(floor);
+}
+
+// ════════════════════════════════════════════════════════════
+// FLOOR PLAN (2D canvas)
+// ════════════════════════════════════════════════════════════
+function drawFloorPlan(floor) {
+  const canvas = document.getElementById('plan-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  ctx.fillStyle = '#070B18';
+  ctx.fillRect(0,0,W,H);
+
+  // Draw grid
+  ctx.strokeStyle = '#111E33';
+  ctx.lineWidth = 0.5;
+  const gs = 40;
+  for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  if(!modelBBox || allMeshes.length === 0) {
+    ctx.fillStyle = '#3A6080';
+    ctx.font = '14px IBM Plex Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('Load a model to see floor plan', W/2, H/2);
+    return;
+  }
+
+  const size = modelBBox.getSize(new THREE.Vector3());
+  const pad = 60;
+  const scaleX = (W - pad*2) / size.x;
+  const scaleZ = (H - pad*2) / size.z;
+  const scale = Math.min(scaleX, scaleZ, 40);
+
+  const toScreen = (wx, wz) => ({
+    x: W/2 + wx * scale,
+    y: H/2 + wz * scale,
+  });
+
+  const floorMeshes = allMeshes.filter(m => !floor || m.userData.floor === floor.name || m.userData.floor === undefined);
+
+  // Type-based colors
+  const typeColors2D = {
+    IFCWALL:'#2244AA', IFCWINDOW:'#55AAFF', IFCDOOR:'#CC8844',
+    IFCCOLUMN:'#7799BB', IFCSLAB:'#334466', Unknown:'#1E3450',
+  };
+
+  // Draw from top-down projection
+  floorMeshes.forEach(m => {
+    if(!m.visible) return;
+    const col = typeColors2D[m.userData.type||'Unknown'] || '#1E3450';
+    const box2 = new THREE.Box3().setFromObject(m);
+
+    const a = toScreen(box2.min.x, box2.min.z);
+    const bw = (box2.max.x - box2.min.x) * scale;
+    const bh = (box2.max.z - box2.min.z) * scale;
+
+    ctx.fillStyle = col + 'BB';
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    if(m === selectedMesh) { ctx.fillStyle = '#00E5FF44'; ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 2; }
+    ctx.fillRect(a.x, a.y, bw || 2, bh || 2);
+    ctx.strokeRect(a.x, a.y, bw || 2, bh || 2);
+  });
+
+  // Draw asset markers on plan
+  MOCK_ASSETS.forEach(a => {
+    const marker = assetMarkers.find(m=>m.name==='asset_'+a.id);
+    if(!marker) return;
+    if(floor && a.floor !== floor.name) return;
+    const sc2 = toScreen(marker.position.x, marker.position.z);
+    const col2 = '#'+STATUS_COLORS[a.status].toString(16).padStart(6,'0');
+    ctx.fillStyle = col2;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(sc2.x, sc2.y, 6, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 7px IBM Plex Mono';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(a.name.split('-')[1]||a.name[0], sc2.x, sc2.y);
+  });
+
+  // Floor label
+  ctx.fillStyle = '#3A6080';
+  ctx.font = '11px IBM Plex Mono';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Floor Plan — ' + (floor ? floor.name : 'All Floors'), 12, 12);
+  ctx.fillText('Scale 1:'+Math.round(1/scale*1000)+'mm/px', 12, 28);
+
+  // Compass
+  const cx2 = W-30, cy2 = 30, cr = 18;
+  ctx.beginPath(); ctx.arc(cx2,cy2,cr,0,Math.PI*2); ctx.fillStyle='#07111833'; ctx.fill();
+  ctx.strokeStyle='#1E3450'; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle='#00E5FF'; ctx.font='bold 11px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('N', cx2, cy2-cr+8);
+
+  // Legend
+  const lx = W-140, ly = H-100;
+  ctx.fillStyle='#07111888'; ctx.fillRect(lx-8,ly-8,136,90);
+  Object.entries(typeColors2D).slice(0,4).forEach(([t,c],i)=>{
+    ctx.fillStyle=c; ctx.fillRect(lx,ly+i*18,12,10);
+    ctx.fillStyle='#3A6080'; ctx.font='9px IBM Plex Mono'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(t.replace('IFC',''),lx+16,ly+i*18+5);
+  });
+}
+
+// Resize plan canvas
+function resizePlanCanvas() {
+  const canvas = document.getElementById('plan-canvas');
+  const center = document.getElementById('center');
+  canvas.width = center.clientWidth;
+  canvas.height = center.clientHeight;
+  if(currentView === 'plan') drawFloorPlan(currentFloor);
+}
+
+// ════════════════════════════════════════════════════════════
+// SECTION CUT VIEW
+// ════════════════════════════════════════════════════════════
+function drawSectionCut() {
+  const canvas = document.getElementById('plan-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#070B18';
+  ctx.fillRect(0,0,W,H);
+
+  if(!modelBBox || allMeshes.length===0) {
+    ctx.fillStyle='#3A6080'; ctx.font='14px IBM Plex Mono'; ctx.textAlign='center';
+    ctx.fillText('Load a model to see section', W/2, H/2); return;
+  }
+
+  const size = modelBBox.getSize(new THREE.Vector3());
+  const scaleX = (W-80)/size.x;
+  const scaleY = (H-80)/size.y;
+  const scale = Math.min(scaleX,scaleY,40);
+  const offX = W/2, offY = H-40;
+
+  // Draw section (front view — X/Y plane)
+  ctx.strokeStyle='#1E3450'; ctx.lineWidth=0.5;
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+
+  const typeColors3 = {IFCWALL:'#2244AA',IFCWINDOW:'#55AAFF',IFCDOOR:'#CC8844',IFCCOLUMN:'#7799BB',IFCSLAB:'#334466',Unknown:'#1E3450'};
+
+  allMeshes.forEach(m=>{
+    if(!m.visible) return;
+    const b2 = new THREE.Box3().setFromObject(m);
+    const col = typeColors3[m.userData.type||'Unknown']||'#1E3450';
+    const sx = offX + b2.min.x*scale;
+    const sy = offY - b2.max.y*scale;
+    const sw = (b2.max.x-b2.min.x)*scale;
+    const sh = (b2.max.y-b2.min.y)*scale;
+    ctx.fillStyle=col+'AA'; ctx.strokeStyle=col;
+    ctx.lineWidth=m===selectedMesh?2:0.8;
+    ctx.fillRect(sx,sy,sw||2,sh||2);
+    ctx.strokeRect(sx,sy,sw||2,sh||2);
+  });
+
+  // Ground line
+  ctx.strokeStyle='#3A6080'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(0,offY); ctx.lineTo(W,offY); ctx.stroke();
+
+  // Floor level markers
+  floorsData.forEach(f=>{
+    const sy = offY - f.elevation*scale;
+    if(sy<0||sy>H) return;
+    ctx.strokeStyle='#1E3450'; ctx.lineWidth=0.5; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(W,sy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#3A6080'; ctx.font='9px IBM Plex Mono'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(f.name + ' (' + f.elevation + 'm)', 4, sy);
+  });
+
+  // Label
+  ctx.fillStyle='#3A6080'; ctx.font='11px IBM Plex Mono'; ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.fillText('Section Cut — Front View (X/Y)', 12, 12);
+}
+
+// ════════════════════════════════════════════════════════════
+// VIEW SWITCHING
+// ════════════════════════════════════════════════════════════
+function switchView(view, btn) {
+  currentView = view;
+  document.querySelectorAll('.htab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const c3d = document.getElementById('viewer-3d');
+  const cplan = document.getElementById('plan-canvas');
+
+  if(view === '3d') {
+    c3d.style.display = 'block';
+    cplan.style.display = 'none';
+    document.getElementById('view-toolbar').style.display = allMeshes.length ? 'flex' : 'none';
+  } else {
+    c3d.style.display = 'none';
+    cplan.style.display = 'block';
+    resizePlanCanvas();
+    if(view==='plan') drawFloorPlan(currentFloor);
+    else drawSectionCut();
+    document.getElementById('view-toolbar').style.display = 'none';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// APS PROMPT (for RVT/NWD files)
+// ════════════════════════════════════════════════════════════
+function showAPSPrompt(file) {
+  hideLoadOverlay();
+  showToast('RVT/NWD: use Autodesk Platform Services to convert → IFC or GLB');
+  document.getElementById('props-area').innerHTML = `
+    <div class="prop-group">
+      <div class="prop-group-title" style="color:var(--yw)">⚠ Revit File Detected</div>
+      <div style="font-size:11px;color:var(--mt);line-height:1.7;margin-top:6px">
+        <b style="color:var(--tx)">${file.name}</b><br/><br/>
+        RVT files require Autodesk Platform Services (APS) to convert to a web-viewable format.<br/><br/>
+        <b style="color:var(--ac)">Option 1 — Free conversion:</b><br/>
+        Export from Revit to <b>IFC</b> (File → Export → IFC) then reload<br/><br/>
+        <b style="color:var(--ac)">Option 2 — APS cloud viewer:</b><br/>
+        Register at aps.autodesk.com (free tier), upload your RVT, embed the Viewer SDK<br/><br/>
+        <b style="color:var(--ac)">Option 3 — Free converters:</b><br/>
+        • IfcOpenShell (open source)<br/>
+        • BIMserver.org<br/>
+        • Speckle.systems (free tier)
+      </div>
+    </div>`;
+  switchRTab('properties', document.querySelector('.rpt'));
+  guessType = t => 'Unknown';
+}
+
+// ════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════
+function guessType(name) {
+  const n = (name||'').toLowerCase();
+  if(n.includes('wall')) return 'IFCWALL';
+  if(n.includes('slab')||n.includes('floor')||n.includes('ceiling')) return 'IFCSLAB';
+  if(n.includes('column')||n.includes('pillar')) return 'IFCCOLUMN';
+  if(n.includes('beam')) return 'IFCBEAM';
+  if(n.includes('window')) return 'IFCWINDOW';
+  if(n.includes('door')) return 'IFCDOOR';
+  if(n.includes('roof')) return 'IFCROOF';
+  if(n.includes('stair')) return 'IFCSTAIR';
+  return 'Unknown';
+}
+
+function guessFloor(idx) {
+  const floors = ['Basement','Ground Floor','Level 1','Level 2','Level 3','Roof'];
+  return floors[idx % floors.length];
+}
+
+function showLoadOverlay(title, sub, pct) {
+  const ov = document.getElementById('load-overlay');
+  ov.classList.remove('hidden');
+  document.getElementById('load-title').textContent = title;
+  document.getElementById('load-sub').textContent = sub;
+  document.getElementById('load-fill').style.width = pct+'%';
+  setStatus(sub, 'loading');
+}
+
+function setLoadProgress(sub, pct) {
+  document.getElementById('load-sub').textContent = sub;
+  document.getElementById('load-fill').style.width = pct+'%';
+  setStatus(sub, 'loading');
+}
+
+function hideLoadOverlay() {
+  document.getElementById('load-overlay').classList.add('hidden');
+}
+
+function setStatus(label, state='ok') {
+  const dot = document.getElementById('sys-dot');
+  const lbl = document.getElementById('sys-label');
+  dot.className = 'status-dot' + (state==='loading'?' loading':state==='error'?' error':'');
+  lbl.textContent = label;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._to);
+  t._to = setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+function updateHUD() {
+  const hud = document.getElementById('hud');
+  if(!modelGroup) { hud.textContent=''; return; }
+  hud.innerHTML = `θ ${(camTheta*180/Math.PI).toFixed(0)}° φ ${(camPhi*180/Math.PI).toFixed(0)}°<br/>zoom ×${(20/camRadius).toFixed(2)}<br/>${allMeshes.length} elements`;
+}
+
+function switchRTab(tab, btn) {
+  activeRTab = tab;
+  ['properties','assets','clip'].forEach(t => {
+    document.getElementById('rtab-'+t).style.display = t===tab?'':'none';
+  });
+  document.querySelectorAll('.rpt').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.rpt').forEach(b=>{ if(b.onclick?.toString().includes("'"+tab+"'")) b.classList.add('active'); });
+}
+
+// ════════════════════════════════════════════════════════════
+// DRAG & DROP ON CENTER
+// ════════════════════════════════════════════════════════════
+const center = document.getElementById('center');
+center.addEventListener('dragover', e => {
+  e.preventDefault();
+  document.getElementById('drop-overlay').classList.add('show');
+  document.getElementById('drop-zone').classList.add('drag');
+});
+center.addEventListener('dragleave', e => {
+  if(!center.contains(e.relatedTarget)) {
+    document.getElementById('drop-overlay').classList.remove('show');
+    document.getElementById('drop-zone').classList.remove('drag');
+  }
+});
+center.addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('drop-overlay').classList.remove('show');
+  document.getElementById('drop-zone').classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if(f) loadBIMFile(f);
+});
+
+// Sidebar drop zone
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if(f) loadBIMFile(f);
+});
+
+// ════════════════════════════════════════════════════════════
+// RESIZE
+// ════════════════════════════════════════════════════════════
+window.addEventListener('resize', () => {
+  const center = document.getElementById('center');
+  renderer.setSize(center.clientWidth, center.clientHeight);
+  camera.aspect = center.clientWidth / center.clientHeight;
+  camera.updateProjectionMatrix();
+  resizePlanCanvas();
+});
+
+// ════════════════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════════════════
+initThree();
+renderAssetListRP();
+resizePlanCanvas();
+setStatus('Ready');
+document.getElementById('fps-pill').style.display='none';
+document.getElementById('vertex-count').style.display='none';
+
+</script>
+</body>
+</html>
